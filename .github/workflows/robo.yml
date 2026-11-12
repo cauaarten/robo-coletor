@@ -1,0 +1,30 @@
+name: robo
+on:
+  workflow_dispatch:
+    inputs:
+      pedido:
+        description: número do pedido
+        required: true
+concurrency:
+  group: robo
+  cancel-in-progress: false
+jobs:
+  rodar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('package.json') }}
+      - run: npm install --no-audit --no-fund --silent
+      - run: npx playwright install --with-deps chromium > /dev/null 2>&1
+      - run: pip install --quiet python-docx > /dev/null 2>&1
+      - run: node robo.mjs "${{ inputs.pedido }}"
+        env:
+          ARTEN_API: ${{ secrets.ARTEN_API }}
+          ROBO_TOKEN: ${{ secrets.ROBO_TOKEN }}

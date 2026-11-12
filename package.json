@@ -1,0 +1,8 @@
+{
+  "name": "robo-coletor",
+  "private": true,
+  "type": "module",
+  "description": "Robô genérico de coleta: busca em mapas, leitura de sites, prints e montagem de documentos. Recebe pedidos de uma API e devolve o resultado.",
+  "scripts": { "rodar": "node robo.mjs" },
+  "dependencies": { "playwright": "1.58.2" }
+}
