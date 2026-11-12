@@ -38,7 +38,7 @@ export async function buscar(termo, { centro, maximo = 20, print } = {}) {
         const partes = (linhas[0] || "").split("·").map((x) => x.trim()).filter(Boolean);
         return {
           nome: a.getAttribute("aria-label") || "", url: a.href, notaTxt: nota, categoria: partes[0] || null, endereco: partes.length > 1 ? partes[partes.length - 1] : null,
-          telefone: card.querySelector(".UsdlK")?.textContent || null, site: card.querySelector('a[data-value="Website"]')?.href || null, patrocinado: /Patrocinado/i.test(card.innerText),
+          telefone: card.querySelector(".UsdlK")?.textContent || null, site: card.querySelector('a[data-value="Website"], a[data-value="Site"], a[aria-label^="Visitar o site"], a[aria-label^="Visit"]')?.href || null, patrocinado: /Patrocinado/i.test(card.innerText),
         };
       }),
     );
@@ -62,7 +62,7 @@ export async function ficha(url, print) {
     return await p.evaluate(() => {
       const aria = (re) => [...document.querySelectorAll("[aria-label]")].map((e) => e.getAttribute("aria-label") || "").find((a) => re.test(a));
       const tira = (s, pre) => (s ? s.replace(pre, "").trim() : null);
-      return { nome: document.querySelector("h1.DUwDvf")?.textContent?.trim() || null, endereco: tira(aria(/^Endereço:/), "Endereço:"), site: tira(aria(/^Website:/), "Website:"), telefone: tira(aria(/^Telefone:/), "Telefone:") };
+      return { nome: document.querySelector("h1.DUwDvf")?.textContent?.trim() || null, endereco: tira(aria(/^Endereço:/), "Endereço:"), site: document.querySelector('a[data-item-id="authority"]')?.href || tira(aria(/^(Website|Site):/), /^(Website|Site):/), telefone: tira(aria(/^Telefone:/), "Telefone:") };
     });
   } finally {
     await ctx.close();

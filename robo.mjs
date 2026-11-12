@@ -36,6 +36,15 @@ const TAREFAS = {
     let i = 0;
     for (const r of res) {
       await etapa(`lendo sites (${++i}/${res.length})`);
+      // Na nuvem a lista às vezes vem sem o botão do site: abre a ficha para pegar.
+      if (!r.site && !r.patrocinado) {
+        const f = await ficha(r.url).catch(() => null);
+        let site = f?.site || null;
+        if (site && /google\.[^/]+\/url/.test(site)) site = new URL(site).searchParams.get("q");
+        if (site) r.site = /^https?:/.test(site) ? site : `https://${site}`;
+        if (!r.telefone && f?.telefone) r.telefone = f.telefone;
+        await esperar(600);
+      }
       if (r.patrocinado || ehAnuncio(r.site)) {
         r.patrocinado = true;
         const f = await ficha(r.url).catch(() => null);
