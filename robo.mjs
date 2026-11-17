@@ -8,7 +8,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { buscar, ficha, ehAnuncio } from "./mapas.mjs";
 import { lerSite, consultarCnpj } from "./sites.mjs";
-import { anunciosMeta } from "./anuncios.mjs";
+import { anunciosMeta, anunciosDoAnunciante, linkBibliotecaMeta } from "./anuncios.mjs";
 import { diagnosticar } from "./diagnostico.mjs";
 import { contexto, esperar, fechar } from "./nav.mjs";
 
@@ -82,6 +82,39 @@ const TAREFAS = {
       await esperar(1500);
     }
     return { anuncios };
+  },
+  async raiox(t, etapa) {
+    // Anúncios ativos de cada concorrente no Meta; as 2 primeiras imagens de cada um vão para o armazenamento
+    // (o link da Biblioteca expira em poucos dias).
+    const pasta = mkdtempSync(path.join(tmpdir(), "raiox-"));
+    const nomes = t.dados.nomes || [];
+    const concorrentes = [];
+    for (const [i, nome] of nomes.entries()) {
+      await etapa(`concorrente ${i + 1} de ${nomes.length}`);
+      const r = await anunciosDoAnunciante(nome, { maximo: 18 }).catch(() => null);
+      if (!r) {
+        concorrentes.push({ nome, total: null, videos: 0, maisAntigo: null, anuncios: [], link: linkBibliotecaMeta(nome) });
+        continue;
+      }
+      const anuncios = r.anuncios.slice(0, 6);
+      for (const [j, a] of anuncios.slice(0, 2).entries()) {
+        const arq = `raiox-${i + 1}-${j + 1}.jpg`;
+        if (!a.imagem || !t.envios[arq]) continue;
+        try {
+          const b = await fetch(a.imagem);
+          if (!b.ok) continue;
+          writeFileSync(path.join(pasta, arq), Buffer.from(await b.arrayBuffer()));
+          await enviar(t.envios[arq], path.join(pasta, arq), "image/jpeg");
+          a.arquivo = arq;
+        } catch {
+          /* fica sem imagem */
+        }
+      }
+      for (const a of anuncios) delete a.imagem;
+      concorrentes.push({ nome, total: r.total, videos: r.anuncios.filter((a) => a.video).length, maisAntigo: r.anuncios[0]?.dias ?? null, anuncios, link: r.link });
+      await esperar(1500);
+    }
+    return { concorrentes };
   },
   async slides(t, etapa) {
     await etapa("desenhando os slides");

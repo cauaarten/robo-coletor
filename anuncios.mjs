@@ -81,3 +81,53 @@ export async function anunciosGoogle(site, print) {
     await ctx.close();
   }
 }
+
+// Anúncios ativos de um anunciante (busca pelo nome e fica só com os cartões em que ele é o anunciante).
+// Lê cada cartão pelo próprio DOM para pegar a imagem (ou a capa do vídeo) daquele anúncio.
+export async function anunciosDoAnunciante(nome, opcoes = {}) {
+  const link = linkBibliotecaMeta(nome);
+  const ctx = await contexto({ largura: 1300, altura: 1000 });
+  try {
+    const p = await ctx.newPage();
+    await p.goto(link, { waitUntil: "domcontentloaded", timeout: 45000 });
+    await p.waitForFunction(() => /resultado|Nenhum anúncio|Não encontramos/i.test(document.body.innerText), null, { timeout: 25000 }).catch(() => undefined);
+    await esperar(2500);
+    const maximo = opcoes.maximo || 18;
+    for (let i = 0; i < Math.ceil(maximo / 6); i++) {
+      await p.mouse.wheel(0, 2500);
+      await esperar(1200);
+    }
+    const cartoes = await p.evaluate(() => {
+      const conta = (t) => (t.match(/Identificação da biblioteca/g) || []).length;
+      const ids = [...document.querySelectorAll("span, div")].filter((e) => e.childElementCount === 0 && /Identificação da biblioteca/.test(e.textContent || ""));
+      return ids.map((s) => {
+        let el = s;
+        while (el.parentElement && conta(el.parentElement.innerText || "") <= 1) el = el.parentElement;
+        const v = el.querySelector("video");
+        const img = [...el.querySelectorAll("img")].filter((i) => i.getBoundingClientRect().width >= 150 || i.naturalWidth >= 300).map((i) => i.src)[0];
+        return { texto: el.innerText, video: !!v, imagem: v?.poster || img || null };
+      });
+    });
+    const alvo = normal(nome);
+    const anuncios = [];
+    for (const c of cartoes) {
+      const linhas = c.texto.split("\n").map((l) => l.trim()).filter(Boolean);
+      const id = (linhas.find((l) => /Identificação da biblioteca/.test(l)) || "").match(/\d{6,}/)?.[0] || "";
+      if (!id || anuncios.some((a) => a.id === id)) continue;
+      const inicio = dataBR(linhas.find((l) => /Veiculação iniciada/i.test(l)) || "");
+      const iDet = linhas.findIndex((l) => /Ver detalhes do anúncio|Ver detalhes do resumo/i.test(l));
+      const anunciante = iDet >= 0 ? linhas[iDet + 1] || "" : "";
+      const a = normal(anunciante);
+      if (alvo.length < 4 || !a || !(a.includes(alvo.slice(0, 14)) || alvo.includes(a.slice(0, 14)))) continue;
+      const iPat = linhas.findIndex((l) => l === "Patrocinado");
+      const texto = linhas.slice(iPat >= 0 ? iPat + 1 : iDet + 2, (iPat >= 0 ? iPat : iDet) + 10)
+        .filter((l) => !/^(Saiba mais|Enviar mensagem|Agendar|Cadastre-se|Ver detalhes|Abrir menu suspenso|Este anúncio tem várias versões|Fale conosco|Enviar mensagem pelo WhatsApp)/i.test(l)).join("\n").slice(0, 600);
+      const versoes = Number(c.texto.match(/(\d+)\s+anúncios? usa/i)?.[1] || 1);
+      anuncios.push({ id, anunciante, inicio, dias: inicio ? Math.max(1, Math.round((Date.now() - new Date(inicio).getTime()) / 864e5)) : null, texto, video: c.video, imagem: c.imagem, versoes });
+    }
+    anuncios.sort((x, y) => (y.dias || 0) - (x.dias || 0));
+    return { nome, total: anuncios.length, anuncios, link };
+  } finally {
+    await ctx.close();
+  }
+}
