@@ -30,6 +30,12 @@ async function enviar(url, arquivo, tipo) {
 }
 
 const TAREFAS = {
+  async achar(t, etapa) {
+    // Busca rápida no Maps para escolher uma clínica (só a lista; o diagnóstico lê o resto depois).
+    await etapa("buscando no Google Maps");
+    const res = await buscar(t.dados.termo, { maximo: 8 });
+    return { resultados: res.map((r) => ({ ...r, site: r.site && !ehAnuncio(r.site) ? r.site : null })) };
+  },
   async busca(t, etapa) {
     await etapa("buscando no Google Maps");
     const res = await buscar(`${t.dados.termo} em ${t.dados.cidade}`, { maximo: t.dados.quantas || 20 });
