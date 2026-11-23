@@ -140,6 +140,27 @@ const TAREFAS = {
     }
     return { arquivos };
   },
+  async pdf(t, etapa) {
+    // Junta os slides do deck (base + diagnóstico da clínica) num PDF 16:9, uma imagem por página.
+    await etapa("juntando o PDF");
+    const imgs = t.dados.imagens || [];
+    if (!imgs.length) throw new Error("deck sem slides");
+    const pasta = mkdtempSync(path.join(tmpdir(), "pdf-"));
+    const arq = path.join(pasta, "apresentacao.pdf");
+    const ctx = await contexto({ largura: 1920, altura: 1080 });
+    try {
+      const p = await ctx.newPage();
+      const html = `<!doctype html><html><head><style>@page{size:1920px 1080px;margin:0}html,body{margin:0}img{display:block;width:1920px;height:1080px;object-fit:cover;page-break-after:always}img:last-child{page-break-after:auto}</style></head><body>${imgs.map((u) => `<img src="${u}">`).join("")}</body></html>`;
+      await p.setContent(html, { waitUntil: "networkidle", timeout: 120000 });
+      const faltando = await p.evaluate(() => [...document.images].filter((i) => !i.complete || !i.naturalWidth).map((i) => i.src));
+      if (faltando.length) throw new Error(`${faltando.length} slide(s) não carregaram`);
+      await p.pdf({ path: arq, width: "1920px", height: "1080px", printBackground: true });
+    } finally {
+      await ctx.close();
+    }
+    await enviar(t.envios["apresentacao.pdf"], arq, "application/pdf");
+    return { paginas: imgs.length };
+  },
   async contrato(t, etapa) {
     await etapa("preenchendo o contrato");
     const pasta = mkdtempSync(path.join(tmpdir(), "doc-"));
