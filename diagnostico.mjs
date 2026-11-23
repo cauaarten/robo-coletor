@@ -90,7 +90,7 @@ export async function diagnosticar({ clinica, termo, tamanho = 5 }, pasta, etapa
   d.anunciosMeta = await anunciosMeta(c.instagram || c.nome, { print: path.join(pasta, "meta-ads.png"), filtroAnunciante: [c.nome, c.instagram || ""] }).catch(() => null);
   if (d.anunciosMeta?.print) d.prints.metaAds = "meta-ads.png";
   await etapa("anúncios dos concorrentes no Meta");
-  d.nichoMeta = await anunciosMeta(`${termo} ${c.cidade || ""}`.trim(), { print: path.join(pasta, "meta-nicho.png"), maximo: 30 }).catch(() => null);
+  d.nichoMeta = await anunciosMeta(`${termo} ${c.cidade || ""}`.trim(), { print: path.join(pasta, "meta-nicho.png"), maximo: 30, cidade: c.cidade || "" }).catch(() => null);
   if (d.nichoMeta?.print) d.prints.metaNicho = "meta-nicho.png";
   if (c.site) {
     await etapa("procurando anúncios no Google");

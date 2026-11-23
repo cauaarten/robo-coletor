@@ -1,7 +1,41 @@
 import { contexto, esperar } from "./nav.mjs";
+import { readFileSync } from "node:fs";
 
-// Biblioteca de Anúncios do Meta (pública, sem login) e Central de Transparência de Anúncios do Google.
+// Municípios do IBGE ([nome sem acento, UF]) para saber se um anúncio é da região da clínica.
+const CIDADES = JSON.parse(readFileSync(new URL("./cidades.json", import.meta.url), "utf8"));
+const semAcento = (s) => ` ${(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `;
 
+// Nomes de cidade que também são palavras comuns em anúncio: no texto, não contam como cidade.
+const COMUNS = new Set(["harmonia", "esperanca", "concordia", "liberdade", "progresso", "primavera", "diamante", "paraiso", "vitoria", "estrela", "triunfo", "alegria", "sorriso", "formosa", "encanto", "central", "cristal", "florida"]);
+const UFS = new Set(CIDADES.map(([, u]) => u.toLowerCase()));
+
+// true = cita a cidade ou outra do mesmo estado; false = cita só cidade de outro estado; null = não dá para saber.
+export function daRegiao(anuncio, cidade) {
+  const alvo = semAcento(cidade).trim();
+  const uf = CIDADES.find(([n]) => n === alvo)?.[1];
+  if (!alvo || !uf) return null;
+  // 1) Nome da página: só o trecho depois de um separador ("HUFF LIFE - Lajeado", "Clínica X | Floripa SC").
+  //    Sem separador não olha, porque sobrenome também é cidade (Castro, Chaves, Gonzaga).
+  const trechos = (anuncio.anunciante || "").split(/\s[-–|·]\s?|[-–|·,/]\s/).slice(1);
+  for (const tr of trechos) {
+    const p = semAcento(tr).trim().split(" ");
+    if (p.length > 1 && UFS.has(p[p.length - 1])) p.pop();
+    const nome = p.join(" ");
+    if (nome === alvo) return true;
+    const achou = CIDADES.find(([n]) => n === nome);
+    if (achou) return achou[1] === uf;
+  }
+  // 2) Texto do anúncio: nomes de 8+ letras, fora as palavras comuns.
+  const t = semAcento(`${anuncio.anunciante} ${anuncio.texto}`);
+  if (t.includes(` ${alvo} `)) return true;
+  let fora = false;
+  for (const [n, u] of CIDADES) {
+    if (n.length < 8 || COMUNS.has(n) || !t.includes(` ${n} `)) continue;
+    if (u === uf) return true;
+    fora = true;
+  }
+  return fora ? false : null;
+}
 
 const MESES = { jan: 0, fev: 1, mar: 2, abr: 3, mai: 4, jun: 5, jul: 6, ago: 7, set: 8, out: 9, nov: 10, dez: 11 };
 function dataBR(s) {
@@ -56,9 +90,22 @@ export async function anunciosMeta(termo, opcoes = {}) {
         plataformas: [/Plataformas/i.test(bloco) ? "meta" : ""].filter(Boolean), video: /0:\d\d|\d:\d\d \/ \d:\d\d/.test(bloco), imagem: r.imgs[i] || null,
       };
     });
+    let foraDaRegiao = 0;
+    if (opcoes.cidade) {
+      // A busca por palavra traz anúncio de qualquer lugar ("Florianópolis" puxa Petrópolis-RJ):
+      // tira quem só cita cidade de outro estado e põe primeiro quem cita a região.
+      for (const a of anuncios) a.regiao = daRegiao(a, opcoes.cidade);
+      foraDaRegiao = anuncios.filter((a) => a.regiao === false).length;
+      const vistos = new Set();
+      const ficam = anuncios
+        .filter((a) => a.regiao !== false)
+        .sort((x, y) => (y.regiao === true) - (x.regiao === true))
+        .filter((a) => { const k = normal(a.anunciante); if (!k) return true; if (vistos.has(k)) return false; vistos.add(k); return true; });
+      anuncios.splice(0, anuncios.length, ...ficam);
+    }
     const filtros = (opcoes.filtroAnunciante || []).map(normal).filter((x) => x.length >= 4);
     const daClinica = filtros.length ? anuncios.filter((a) => filtros.some((f) => normal(a.anunciante).includes(f.slice(0, 14)) || f.includes(normal(a.anunciante).slice(0, 14)))).length : anuncios.length;
-    return { termo, total: r.total, daClinica, anuncios, print: opcoes.print, link };
+    return { termo, total: r.total, daClinica, anuncios, foraDaRegiao, print: opcoes.print, link };
   } finally {
     await ctx.close();
   }
