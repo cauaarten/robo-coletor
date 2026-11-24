@@ -15,7 +15,7 @@ modelo, arq_dados, saida = sys.argv[1:4]
 dados = json.load(open(arq_dados, encoding="utf-8"))
 campos = {k: v for k, v in dados.get("campos", {}).items() if v}
 plano = dados.get("plano", "")
-NOMES = {"start": "LIFT Start", "black": "LIFT Black", "pro": "LIFT Black"}
+NOMES = {"start": "LIFT Start", "black": "LIFT Black", "pro": "LIFT Black", "rede": "LIFT Rede"}
 
 doc = Document(modelo)
 
@@ -51,6 +51,10 @@ for p in paragrafos(doc):
         if plano and "☐" in run.text and NOMES.get(plano, "@@") in run.text:
             linhas = run.text.split("\n")
             run.text = "\n".join(l.replace("☐", "☒") if NOMES[plano] in l else l for l in linhas)
+            # LIFT Rede: o valor vem da proposta e entra na linha do plano
+            if plano == "rede" and dados.get("valor"):
+                v = f"{float(dados['valor']):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                run.text = run.text.replace("R$ ________/mês", f"R$ {v}/mês")
 
 doc.save(saida)
 print(json.dumps({"faltando": sorted(faltando)}, ensure_ascii=False))
