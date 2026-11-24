@@ -1,7 +1,7 @@
 """Preenche um modelo .docx: troca os campos «...» pelos valores recebidos e marca a opção escolhida.
 
 Uso: uv run --with python-docx python3 preencher_contrato.py modelo.docx dados.json saida.docx
-dados.json: {"campos": {"NOME OU RAZÃO SOCIAL": "...", ...}, "plano": "start|pro|black"}
+dados.json: {"campos": {"NOME OU RAZÃO SOCIAL": "...", ...}, "plano": "start|black"}
 Campos sem valor continuam amarelos para preencher à mão.
 """
 import json
@@ -15,7 +15,7 @@ modelo, arq_dados, saida = sys.argv[1:4]
 dados = json.load(open(arq_dados, encoding="utf-8"))
 campos = {k: v for k, v in dados.get("campos", {}).items() if v}
 plano = dados.get("plano", "")
-NOMES = {"start": "LIFT Start", "pro": "LIFT Pro", "black": "LIFT Black"}
+NOMES = {"start": "LIFT Start", "black": "LIFT Black", "pro": "LIFT Black"}
 
 doc = Document(modelo)
 
