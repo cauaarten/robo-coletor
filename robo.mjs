@@ -167,6 +167,25 @@ const TAREFAS = {
     await enviar(t.envios["apresentacao.pdf"], arq, "application/pdf");
     return { paginas: imgs.length };
   },
+  async relatorio(t, etapa) {
+    // Relatório mensal do cliente: HTML (slides 1920x1080 em <section class="s">) → PDF, uma página por slide.
+    await etapa("montando o PDF do relatório");
+    const pasta = mkdtempSync(path.join(tmpdir(), "rel-"));
+    const arq = path.join(pasta, "relatorio.pdf");
+    const ctx = await contexto({ largura: 1920, altura: 1080 });
+    try {
+      const p = await ctx.newPage();
+      const html = await (await fetch(t.dados.html_url)).text();
+      await p.setContent(html, { waitUntil: "networkidle", timeout: 60000 });
+      await p.evaluate(() => document.fonts.ready);
+      await esperar(600);
+      await p.pdf({ path: arq, width: "1920px", height: "1080px", printBackground: true });
+    } finally {
+      await ctx.close();
+    }
+    await enviar(t.envios["relatorio.pdf"], arq, "application/pdf");
+    return { ok: true };
+  },
   async contrato(t, etapa) {
     await etapa("preenchendo o contrato");
     const pasta = mkdtempSync(path.join(tmpdir(), "doc-"));
